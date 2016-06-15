@@ -1,5 +1,8 @@
 package com.zubairsaiyed.twitter;
 
+import org.apache.log4j.Logger;
+import org.apache.log4j.BasicConfigurator;
+
 import org.apache.storm.kafka.KafkaSpout;
 import org.apache.storm.kafka.SpoutConfig;
 import org.apache.storm.kafka.ZkHosts;
@@ -21,24 +24,22 @@ import java.util.Map;
 
 public class TwitterTopology {
 
-  private static final String SENTENCE_SPOUT_ID = "kafka-sentence-spout";
-  private static final String SPLIT_BOLT_ID = "acking-split-bolt";
-  private static final String COUNT_BOLT_ID = "acking-count-bolt";
-  private static final String REPORT_BOLT_ID = "acking-report-bolt";
+  private final Logger LOGGER = Logger.getLogger(this.getClass());
 
   public static void main(String[] args) throws Exception {
+    BasicConfigurator.configure();
 
     KafkaSpout kspout = buildKafkaSentenceSpout();
-    SplitSentenceBolt splitBolt = new SplitSentenceBolt();
+    TwitterFilterBolt twitterFilterBolt = new TwitterFilterBolt();
     WordCountBolt countBolt = new WordCountBolt();
     ReportBolt reportBolt = new ReportBolt();
 
     TopologyBuilder builder = new TopologyBuilder();
 
-    builder.setSpout(SENTENCE_SPOUT_ID, kspout, 1);
-    builder.setBolt(SPLIT_BOLT_ID, splitBolt).shuffleGrouping(SENTENCE_SPOUT_ID);
-    builder.setBolt(COUNT_BOLT_ID, countBolt).fieldsGrouping(SPLIT_BOLT_ID, new Fields("word"));
-    builder.setBolt(REPORT_BOLT_ID, reportBolt).globalGrouping(COUNT_BOLT_ID);
+    builder.setSpout("kafka_spout", kspout, 4);
+    builder.setBolt("twitter_filter", twitterFilterBolt).shuffleGrouping("kafka_spout");
+    //builder.setBolt(COUNT_BOLT_ID, countBolt).fieldsGrouping(SPLIT_BOLT_ID, new Fields("word"));
+    //builder.setBolt(REPORT_BOLT_ID, reportBolt).globalGrouping(COUNT_BOLT_ID);
 
     Config conf = new Config();
     conf.setDebug(true);
@@ -67,6 +68,10 @@ public class TwitterTopology {
     ZkHosts zkHosts = new ZkHosts(zkHostPort);
     
     SpoutConfig spoutCfg = new SpoutConfig(zkHosts, topic, zkRoot, zkSpoutId);
+    spoutCfg.bufferSizeBytes = 1024*1024*4;
+    spoutCfg.fetchSizeBytes = 1024*1024*4;
+    //spoutCfg.forceFromStart = true;
+
     KafkaSpout kafkaSpout = new KafkaSpout(spoutCfg);
     return kafkaSpout;
   }
