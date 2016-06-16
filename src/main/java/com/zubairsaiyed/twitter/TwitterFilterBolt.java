@@ -1,9 +1,12 @@
 package com.zubairsaiyed.twitter;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Map;
+
+import twitter4j.*;
 
 import org.apache.storm.task.OutputCollector;
 import org.apache.storm.task.TopologyContext;
@@ -14,21 +17,13 @@ import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
 import org.apache.storm.tuple.Values;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-
 public class TwitterFilterBolt extends BaseRichBolt {
 
-  private static final long serialVersionUID = 3092938699134129356L;
-  
-  private static final ObjectMapper mapper = new ObjectMapper();
-
-  private static final Logger LOGGER = Logger.getLogger(TwitterFilterBolt.class);
- 
+  private static final Logger LOGGER = LoggerFactory.getLogger(TwitterFilterBolt.class);
   private OutputCollector collector;
   
   @Override @SuppressWarnings("rawtypes")
-  public void prepare(Map cfg, TopologyContext topologyCtx, OutputCollector outCollector) {
+  public void prepare(Map cfg, TopologyContext context, OutputCollector outCollector) {
     collector = outCollector;
   }
 
@@ -38,37 +33,12 @@ public class TwitterFilterBolt extends BaseRichBolt {
   }
 
   @Override
-  public void execute(Tuple input) {
-        LOGGER.debug("filttering incoming tweets");
-        String json = input.getString(0);
-        try
-        {
-            JsonNode root = mapper.readValue(json, JsonNode.class);
-            long id;
-            String text;
-            if (root.get("lang") != null &&
-                "en".equals(root.get("lang").textValue()))
-            {
-                if (root.get("id") != null && root.get("text") != null)
-                {
-                    id = root.get("id").longValue();
-                    text = root.get("text").textValue();
-                    collector.emit(new Values(id, text));
-                    System.out.println("TWEET PROCESSED: " + id + " " + text);
-                }
-                else
-                    LOGGER.debug("tweet id and/ or text was null");
-            }
-            else
-                LOGGER.debug("Ignoring non-english tweet");
-        }
-        catch (IOException ex)
-        {
-            LOGGER.error("IO error while filtering tweets", ex);
-            LOGGER.trace(null, ex);
-        }
+  public void execute(Tuple tuple) {
+        Status status = (Status)tuple.getValue(0); 
+        if(status.getLang().toLowerCase()=="en") { 
+        	LOGGER.info("User " + status.getUser().getScreenName() + " tweeted " + status.getText()); 
+        	collector.emit(tuple, new Values(status.getId(), status.getUser().getScreenName()));
+        } 
+        collector.ack(tuple); 
   }
-
-  public Map<String, Object> getComponentConfiguration() { return null; }
-
 }

@@ -1,13 +1,17 @@
 package com.zubairsaiyed.twitter;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.BasicConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import kafka.javaapi.OffsetRequest;
+
+import org.apache.storm.kafka.BrokerHosts;
 import org.apache.storm.kafka.KafkaSpout;
 import org.apache.storm.kafka.SpoutConfig;
 import org.apache.storm.kafka.ZkHosts;
 import org.apache.storm.Config;
 import org.apache.storm.LocalCluster;
+import org.apache.storm.spout.SchemeAsMultiScheme; 
 import org.apache.storm.StormSubmitter;
 import org.apache.storm.task.OutputCollector;
 import org.apache.storm.task.TopologyContext;
@@ -21,36 +25,28 @@ import org.apache.storm.tuple.Values;
 import org.apache.storm.utils.Utils;
 
 import java.util.Map;
+import java.util.UUID;
 
 public class TwitterTopology {
 
-  private final Logger LOGGER = Logger.getLogger(this.getClass());
+  private static final Logger LOGGER = LoggerFactory.getLogger(TwitterTopology.class);
 
   public static void main(String[] args) throws Exception {
-    BasicConfigurator.configure();
-
     KafkaSpout kspout = buildKafkaSentenceSpout();
     TwitterFilterBolt twitterFilterBolt = new TwitterFilterBolt();
-    WordCountBolt countBolt = new WordCountBolt();
-    ReportBolt reportBolt = new ReportBolt();
 
     TopologyBuilder builder = new TopologyBuilder();
 
-    builder.setSpout("kafka_spout", kspout, 4);
-    builder.setBolt("twitter_filter", twitterFilterBolt).shuffleGrouping("kafka_spout");
-    //builder.setBolt(COUNT_BOLT_ID, countBolt).fieldsGrouping(SPLIT_BOLT_ID, new Fields("word"));
-    //builder.setBolt(REPORT_BOLT_ID, reportBolt).globalGrouping(COUNT_BOLT_ID);
+    builder.setSpout("kafka_spout", kspout, 2);
+    builder.setBolt("twitter_filter", twitterFilterBolt, 8).shuffleGrouping("kafka_spout");
 
     Config conf = new Config();
     conf.setDebug(true);
 
     if (args != null && args.length > 0) {
       conf.setNumWorkers(3);
-
       StormSubmitter.submitTopologyWithProgressBar(args[0], conf, builder.createTopology());
-    }
-    else {
-
+    } else {
       LocalCluster cluster = new LocalCluster();
       cluster.submitTopology("test", conf, builder.createTopology());
       Utils.sleep(10000);
@@ -60,17 +56,15 @@ public class TwitterTopology {
   }
 
   private static KafkaSpout buildKafkaSentenceSpout() {
-    String zkHostPort = "52.200.190.83:2181";   // a zookeeper node
+    String zkHostPort = "ec2-52-200-190-83.compute-1.amazonaws.com:2181";   // a zookeeper node
     String topic = "twitter-topic";             // kafka topic
 
-    String zkRoot = "/acking-kafka-sentence-spout";
-    String zkSpoutId = "acking-sentence-spout";
-    ZkHosts zkHosts = new ZkHosts(zkHostPort);
+    String zkSpoutId = UUID.randomUUID().toString();
+    BrokerHosts zkHosts = new ZkHosts(zkHostPort);
     
-    SpoutConfig spoutCfg = new SpoutConfig(zkHosts, topic, zkRoot, zkSpoutId);
-    spoutCfg.bufferSizeBytes = 1024*1024*4;
-    spoutCfg.fetchSizeBytes = 1024*1024*4;
-    //spoutCfg.forceFromStart = true;
+    SpoutConfig spoutCfg = new SpoutConfig(zkHosts, topic, "/"+topic, zkSpoutId);
+    spoutCfg.scheme = new SchemeAsMultiScheme(new TweetScheme());
+    spoutCfg.startOffsetTime = kafka.api.OffsetRequest.EarliestTime();
 
     KafkaSpout kafkaSpout = new KafkaSpout(spoutCfg);
     return kafkaSpout;
