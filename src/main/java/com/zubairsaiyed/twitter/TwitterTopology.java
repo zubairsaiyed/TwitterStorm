@@ -34,11 +34,13 @@ public class TwitterTopology {
   public static void main(String[] args) throws Exception {
     KafkaSpout kspout = buildKafkaSentenceSpout();
     TwitterFilterBolt twitterFilterBolt = new TwitterFilterBolt();
+    LuwakSearchBolt luwakSearchBolt = new LuwakSearchBolt();
 
     TopologyBuilder builder = new TopologyBuilder();
 
     builder.setSpout("kafka_spout", kspout, 2);
     builder.setBolt("twitter_filter", twitterFilterBolt, 8).shuffleGrouping("kafka_spout");
+    builder.setBolt("luwak_search", luwakSearchBolt, 8).allGrouping("twitter_filter");
 
     Config conf = new Config();
     conf.setDebug(true);
@@ -56,7 +58,7 @@ public class TwitterTopology {
   }
 
   private static KafkaSpout buildKafkaSentenceSpout() {
-    String zkHostPort = "ec2-52-200-190-83.compute-1.amazonaws.com:2181";   // a zookeeper node
+    String zkHostPort = "localhost:2181";   // a zookeeper node
     String topic = "twitter-topic";             // kafka topic
 
     String zkSpoutId = UUID.randomUUID().toString();
