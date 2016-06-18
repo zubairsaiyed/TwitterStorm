@@ -46,7 +46,7 @@ public class LuwakSearchBolt extends BaseRichBolt {
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    //declarer.declare(new Fields("tweet_id", "tweet_text"));
+    declarer.declare(new Fields("tweet"));
   }
 
   @Override
@@ -54,7 +54,7 @@ public class LuwakSearchBolt extends BaseRichBolt {
         String sourcename = tuple.getSourceComponent(); 
 
         if(sourcename.toLowerCase().contains("query")){
-            MonitorQuery mq = new MonitorQuery("query"+UUID.randomUUID().toString(), "text:lol");
+            MonitorQuery mq = new MonitorQuery("query"+UUID.randomUUID().toString(), "text:trump");
             try {
                     monitor.update(mq);
             } catch (Exception e) { }
@@ -66,10 +66,9 @@ public class LuwakSearchBolt extends BaseRichBolt {
                     Matches<QueryMatch> matches = monitor.match(doc, SimpleMatcher.FACTORY);
                     for(DocumentMatches<QueryMatch> match : matches) {
                         System.out.println("Query: " + match.toString() + " matched document " + status.getText());
+			collector.emit(tuple, new Values(status));
                     }
             } catch (Exception e) { }
-
-
         }
         
         collector.ack(tuple); 

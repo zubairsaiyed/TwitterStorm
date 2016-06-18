@@ -29,15 +29,15 @@ public class TwitterFilterBolt extends BaseRichBolt {
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declare(new Fields("tweet_id", "tweet_text"));
+    declarer.declare(new Fields("tweet"));
   }
 
   @Override
   public void execute(Tuple tuple) {
         Status status = (Status)tuple.getValue(0); 
-        if(status.getLang().toLowerCase()=="en") { 
+        if(status.getLang().equalsIgnoreCase("en")) { 
         	LOGGER.info("User " + status.getUser().getScreenName() + " tweeted " + status.getText()); 
-        	collector.emit(tuple, new Values(status.getId(), status.getUser().getScreenName()));
+        	collector.emit(tuple, new Values(status));
         } 
         collector.ack(tuple); 
   }
