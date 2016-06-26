@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List; 
 import java.nio.ByteBuffer;
  
-import twitter4j.TwitterObjectFactory;
+import twitter4j.*;
 import org.apache.storm.spout.Scheme; 
 import org.apache.storm.kafka.StringScheme; 
 import org.apache.storm.tuple.Fields; 
@@ -19,12 +19,14 @@ public final class TweetScheme implements Scheme {
 	@Override 
 	public List<Object> deserialize(ByteBuffer buff) { 
 		try { 
-			return new Values(TwitterObjectFactory.createStatus(StringScheme.deserializeString(buff))); 
+			Status status = TwitterObjectFactory.createStatus(StringScheme.deserializeString(buff));
+			if(status.getLang().equalsIgnoreCase("en")) 
+				return new Values(status); 
 		} catch (Exception e) { 
 			// ignore non-parsable tweets 
 			LOGGER.debug("ERROR: Could not parse tweet!");
-			return null; 
 		} 
+		return null; 
 	} 
 
 	@Override 

@@ -8,6 +8,7 @@ import kafka.javaapi.OffsetRequest;
 import org.apache.storm.kafka.BrokerHosts;
 import org.apache.storm.kafka.KafkaSpout;
 import org.apache.storm.kafka.SpoutConfig;
+import org.apache.storm.kafka.StringScheme;
 import org.apache.storm.kafka.ZkHosts;
 import org.apache.storm.Config;
 import org.apache.storm.LocalCluster;
@@ -32,15 +33,20 @@ public class TwitterTopology {
   private static final Logger LOGGER = LoggerFactory.getLogger(TwitterTopology.class);
 
   public static void main(String[] args) throws Exception {
-    KafkaSpout kspout = buildKafkaSentenceSpout();
-    TwitterFilterBolt twitterFilterBolt = new TwitterFilterBolt();
+    KafkaSpout kafkaQuerySpout = buildKafkaQuerySpout();
+    KafkaSpout kafkaTwitterSpout = buildKafkaTwitterSpout();
+    //FanBolt fanBolt = new FanBolt();
     LuwakSearchBolt luwakSearchBolt = new LuwakSearchBolt();
+    RedisClientBolt redisClientBolt = new RedisClientBolt();
+    VaderBolt vaderBolt = new VaderBolt();
 
     TopologyBuilder builder = new TopologyBuilder();
 
-    builder.setSpout("kafka_spout", kspout, 2);
-    builder.setBolt("twitter_filter", twitterFilterBolt, 8).shuffleGrouping("kafka_spout");
-    builder.setBolt("luwak_search", luwakSearchBolt, 8).allGrouping("twitter_filter");
+    builder.setSpout("kafka_query_spout", kafkaQuerySpout, 2);
+    builder.setSpout("kafka_twitter_spout", kafkaTwitterSpout, 2);
+    builder.setBolt("luwak_search", luwakSearchBolt, 8).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
+    builder.setBolt("vader", vaderBolt, 8).shuffleGrouping("luwak_search");
+    builder.setBolt("redis_client", redisClientBolt, 3).fieldsGrouping("vader", new Fields("queryId"));
 
     Config conf = new Config();
     conf.setDebug(true);
@@ -57,7 +63,22 @@ public class TwitterTopology {
     }
   }
 
-  private static KafkaSpout buildKafkaSentenceSpout() {
+  private static KafkaSpout buildKafkaQuerySpout() {
+    String zkHostPort = "localhost:2181";   // a zookeeper node
+    String topic = "query-topic";             // kafka topic
+
+    String zkSpoutId = UUID.randomUUID().toString();
+    BrokerHosts zkHosts = new ZkHosts(zkHostPort);
+    
+    SpoutConfig spoutCfg = new SpoutConfig(zkHosts, topic, "/"+topic, zkSpoutId);
+    spoutCfg.scheme = new SchemeAsMultiScheme(new StringScheme());
+    spoutCfg.startOffsetTime = kafka.api.OffsetRequest.LatestTime();
+
+    KafkaSpout kafkaSpout = new KafkaSpout(spoutCfg);
+    return kafkaSpout;
+  }
+
+  private static KafkaSpout buildKafkaTwitterSpout() {
     String zkHostPort = "localhost:2181";   // a zookeeper node
     String topic = "twitter-topic";             // kafka topic
 
@@ -66,7 +87,7 @@ public class TwitterTopology {
     
     SpoutConfig spoutCfg = new SpoutConfig(zkHosts, topic, "/"+topic, zkSpoutId);
     spoutCfg.scheme = new SchemeAsMultiScheme(new TweetScheme());
-    spoutCfg.startOffsetTime = kafka.api.OffsetRequest.EarliestTime();
+    spoutCfg.startOffsetTime = kafka.api.OffsetRequest.LatestTime();
 
     KafkaSpout kafkaSpout = new KafkaSpout(spoutCfg);
     return kafkaSpout;

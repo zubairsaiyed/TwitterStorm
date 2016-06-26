@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.UUID;
+import java.util.ArrayList;
 
 import twitter4j.*;
 
@@ -40,33 +41,49 @@ public class LuwakSearchBolt extends BaseRichBolt {
   public void prepare(Map cfg, TopologyContext context, OutputCollector outCollector) {
     collector = outCollector;
     try {
-    Monitor monitor = new Monitor(new LuceneQueryParser("text", new StandardAnalyzer()), new TermFilteredPresearcher());
+    	monitor = new Monitor(new LuceneQueryParser("text", new StandardAnalyzer()), new TermFilteredPresearcher());
     } catch (Exception e) { }
+
   }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declare(new Fields("tweet"));
+        declarer.declare(new Fields("tweetText", "matches"));
+        //declarer.declare(new Fields("tweet", "queryId"));
   }
 
   @Override
   public void execute(Tuple tuple) {
         String sourcename = tuple.getSourceComponent(); 
+	MonitorQuery mq;
 
-        if(sourcename.toLowerCase().contains("query")){
-            MonitorQuery mq = new MonitorQuery("query"+UUID.randomUUID().toString(), "text:trump");
-            try {
-                    monitor.update(mq);
-            } catch (Exception e) { }
-
+        if(sourcename.toLowerCase().contains("query")) {
+	    String query = (String)tuple.getValue(0);
+	    if (query.startsWith("delete:::",0)) {
+                try {
+			monitor.deleteById(query.substring(9));
+                } catch (Exception e) { }
+	    } else {
+                mq = new MonitorQuery(Integer.toString(query.toLowerCase().hashCode()), "text:"+query);
+                try {
+                        monitor.update(mq);
+                } catch (Exception e) { }
+	    }
         } else {
-            Status status = (Status)tuple.getValue(0);
-            InputDocument doc = InputDocument.builder("doc"+UUID.randomUUID().toString()).addField("text", status.getText(), new StandardAnalyzer()).build();
+            Status status = (Status)tuple.getValueByField("tweet");
+            InputDocument doc = InputDocument.builder("doc_"+UUID.randomUUID().toString()).addField("text", status.getText(), new StandardAnalyzer()).build();
             try {
                     Matches<QueryMatch> matches = monitor.match(doc, SimpleMatcher.FACTORY);
                     for(DocumentMatches<QueryMatch> match : matches) {
-                        System.out.println("Query: " + match.toString() + " matched document " + status.getText());
-			collector.emit(tuple, new Values(status));
+			ArrayList<String> list = new ArrayList<String>();
+			for (QueryMatch mat : match) {
+				list.add(mat.getQueryId());
+				//System.out.println("Query: " + match.toString() + " matched document " + status.getText());
+				//collector.emit(tuple, new Values(status, match.toString()));
+				//collector.emit(tuple, new Values(status.getText()));
+                	}
+			if (list.size() > 0)
+				collector.emit(tuple, new Values(status.getText(), list));
                     }
             } catch (Exception e) { }
         }
