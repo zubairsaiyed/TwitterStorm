@@ -35,8 +35,12 @@ public class TwitterTopology {
   public static void main(String[] args) throws Exception {
     KafkaSpout kafkaQuerySpout = buildKafkaQuerySpout();
     KafkaSpout kafkaTwitterSpout = buildKafkaTwitterSpout();
-    //FanBolt fanBolt = new FanBolt();
-    LuwakSearchBolt luwakSearchBolt = new LuwakSearchBolt();
+    FanBolt fanBolt1 = new FanBolt();
+    FanBolt fanBolt2 = new FanBolt();
+    FanBolt fanBolt3 = new FanBolt();
+    LuwakSearchBolt luwakSearchBolt1 = new LuwakSearchBolt();
+    LuwakSearchBolt luwakSearchBolt2 = new LuwakSearchBolt();
+    LuwakSearchBolt luwakSearchBolt3 = new LuwakSearchBolt();
     RedisClientBolt redisClientBolt = new RedisClientBolt();
     VaderBolt vaderBolt = new VaderBolt();
 
@@ -44,8 +48,14 @@ public class TwitterTopology {
 
     builder.setSpout("kafka_query_spout", kafkaQuerySpout, 2);
     builder.setSpout("kafka_twitter_spout", kafkaTwitterSpout, 2);
-    builder.setBolt("luwak_search", luwakSearchBolt, 8).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
-    builder.setBolt("vader", vaderBolt, 8).shuffleGrouping("luwak_search");
+    //builder.setBolt("luwak_search", luwakSearchBolt, 8).allGrouping("kafka_query_spout").customGrouping("kafka_twitter_spout", new MultiGrouping());
+    builder.setBolt("fan1", fanBolt1, 1).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
+    builder.setBolt("fan2", fanBolt2, 1).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
+    builder.setBolt("fan3", fanBolt3, 1).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
+    builder.setBolt("luwak_search1", luwakSearchBolt1, 2).customGrouping("fan1", new MultiGrouping());
+    builder.setBolt("luwak_search2", luwakSearchBolt2, 2).customGrouping("fan2", new MultiGrouping());
+    builder.setBolt("luwak_search3", luwakSearchBolt3, 2).customGrouping("fan3", new MultiGrouping());
+    builder.setBolt("vader", vaderBolt, 6).shuffleGrouping("luwak_search1").shuffleGrouping("luwak_search2").shuffleGrouping("luwak_search3");
     builder.setBolt("redis_client", redisClientBolt, 3).fieldsGrouping("vader", new Fields("queryId"));
 
     Config conf = new Config();

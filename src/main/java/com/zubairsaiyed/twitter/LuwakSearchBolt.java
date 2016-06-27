@@ -33,7 +33,7 @@ import org.apache.storm.tuple.Values;
 
 public class LuwakSearchBolt extends BaseRichBolt {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(TwitterFilterBolt.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(LuwakSearchBolt.class);
   private OutputCollector collector;
   private Monitor monitor;
   
@@ -54,11 +54,11 @@ public class LuwakSearchBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
-        String sourcename = tuple.getSourceComponent(); 
+        String type = tuple.getStringByField("type"); 
 	MonitorQuery mq;
 
-        if(sourcename.toLowerCase().contains("query")) {
-	    String query = (String)tuple.getValue(0);
+        if(type.toLowerCase().equals("query")) {
+	    String query = (String)tuple.getValueByField("value");
 	    if (query.startsWith("delete:::",0)) {
                 try {
 			monitor.deleteById(query.substring(9));
@@ -70,7 +70,7 @@ public class LuwakSearchBolt extends BaseRichBolt {
                 } catch (Exception e) { }
 	    }
         } else {
-            Status status = (Status)tuple.getValueByField("tweet");
+            Status status = (Status)tuple.getValueByField("value");
             InputDocument doc = InputDocument.builder("doc_"+UUID.randomUUID().toString()).addField("text", status.getText(), new StandardAnalyzer()).build();
             try {
                     Matches<QueryMatch> matches = monitor.match(doc, SimpleMatcher.FACTORY);
@@ -78,9 +78,6 @@ public class LuwakSearchBolt extends BaseRichBolt {
 			ArrayList<String> list = new ArrayList<String>();
 			for (QueryMatch mat : match) {
 				list.add(mat.getQueryId());
-				//System.out.println("Query: " + match.toString() + " matched document " + status.getText());
-				//collector.emit(tuple, new Values(status, match.toString()));
-				//collector.emit(tuple, new Values(status.getText()));
                 	}
 			if (list.size() > 0)
 				collector.emit(tuple, new Values(status.getText(), list));
