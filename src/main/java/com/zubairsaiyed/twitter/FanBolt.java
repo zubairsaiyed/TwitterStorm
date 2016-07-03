@@ -35,29 +35,36 @@ public class FanBolt extends BaseRichBolt {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(FanBolt.class);
   private OutputCollector collector;
+  private int count;
   
   @Override @SuppressWarnings("rawtypes")
   public void prepare(Map cfg, TopologyContext context, OutputCollector outCollector) {
     collector = outCollector;
+    count = 0;
   }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        declarer.declare(new Fields("type", "value"));
+        declarer.declareStream("query_stream", new Fields("type", "value"));
+        declarer.declareStream("tweet_stream1", new Fields("type", "value"));
+        declarer.declareStream("tweet_stream2", new Fields("type", "value"));
+        declarer.declareStream("tweet_stream3", new Fields("type", "value"));
   }
 
   @Override
   public void execute(Tuple tuple) {
         String sourcename = tuple.getSourceComponent(); 
-	String tupleType;
+	String tupleType, stream;
 
         if(sourcename.toLowerCase().contains("query")) {
 		tupleType = "query";
+		stream = "query_stream";
         } else {
 		tupleType = "tweet";
+		stream = "tweet_stream" + (count++%3 + 1);
         }
         
-	collector.emit(tuple, new Values(tupleType, tuple.getValue(0)));
+	collector.emit(stream, tuple, new Values(tupleType, tuple.getValue(0)));
         collector.ack(tuple); 
   }
 }

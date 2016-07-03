@@ -31,6 +31,6 @@ class VaderBolt(storm.BasicBolt):
 	vader = vaderSentiment(twt)['compound']
 
 	for queryId in tup.values[1]:
-        	storm.emit([queryId, vader, twt])
+        	storm.emit([queryId, vader, tup.values[0]])
 
 VaderBolt().run()

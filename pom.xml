@@ -115,6 +115,9 @@
 <build>
     <resources>
       <resource>
+        <directory>${basedir}/resources/</directory>
+      </resource>
+      <resource>
         <directory>${basedir}/multilang</directory>
       </resource>
     </resources>

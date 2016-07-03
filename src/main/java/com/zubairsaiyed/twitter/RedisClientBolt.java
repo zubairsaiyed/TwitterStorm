@@ -2,11 +2,14 @@ package com.zubairsaiyed.twitter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.InputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.UUID;
+import java.util.Properties;
 
 import twitter4j.*;
 
@@ -25,32 +28,63 @@ import org.apache.storm.tuple.Values;
 
 public class RedisClientBolt extends BaseRichBolt {
 
+  private final int ROLLING_COUNT = 5;
   private static final Logger LOGGER = LoggerFactory.getLogger(RedisClientBolt.class);
   private OutputCollector collector;
   private static JedisPool pool;
-  private HashMap<String, Long> map;
+  private HashMap<String, Double> averages;
+  private HashMap<String, LinkedList<Double>> queues;
+  private Properties prop;
   
   @Override @SuppressWarnings("rawtypes")
   public void prepare(Map cfg, TopologyContext context, OutputCollector outCollector) {
     collector = outCollector;
-    pool = new JedisPool(new JedisPoolConfig(), "ec2-52-1-176-95.compute-1.amazonaws.com");
-    map = new HashMap<String, Long>();
+    prop = new Properties();
+    try (InputStream input = RedisClientBolt.class.getClassLoader().getResourceAsStream("config.properties")) {
+        prop.load(input);
+    } catch (IOException ex) {
+        ex.printStackTrace();
+    }
+    pool = new JedisPool(new JedisPoolConfig(), prop.getProperty("redis_host"));
+    averages = new HashMap<String, Double>();
+    queues = new HashMap<String, LinkedList<Double>>();
   }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    //declarer.declare(new Fields("tweet"));
   }
 
   @Override
   public void execute(Tuple tuple) {
 	String queryId = tuple.getStringByField("queryId");
 	Double sentiment = (Double)tuple.getValueByField("sentiment");
-	//Status status = (Status)tuple.getValueByField("tweet");
-	try (Jedis jedis = pool.getResource()) {
-		jedis.auth("zclusterredispassword");
-		jedis.publish(queryId, Double.toString(sentiment)+ " " + tuple.getStringByField("tweetText"));
+	if (sentiment != 0) {
+		if (!averages.containsKey(queryId) || !queues.containsKey(queryId)) {
+			LinkedList<Double> q = new LinkedList<Double>();
+			q.add(sentiment);
+			averages.put(queryId, sentiment);
+			queues.put(queryId, q);
+		} else {
+			LinkedList<Double> q = queues.get(queryId);
+			Double avg = averages.get(queryId);
+			int size = 0;
+			if (q != null) size = q.size();
+			if (q.size() >= ROLLING_COUNT) {
+				averages.put(queryId, (avg*size-q.peek()+sentiment)/size);
+				q.poll();
+				q.add(sentiment);
+			} else {
+				averages.put(queryId, (avg*size+sentiment)/(size+1));
+				q.add(sentiment);
+			}
+		}
+
+		try (Jedis jedis = pool.getResource()) {
+			jedis.auth(prop.getProperty("redis_password"));
+			jedis.publish(queryId, Double.toString(averages.get(queryId))+ " " + tuple.getStringByField("tweetText"));
+		}
 	}
+
         collector.ack(tuple); 
   }
 

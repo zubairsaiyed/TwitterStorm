@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import kafka.javaapi.OffsetRequest;
 
+import org.apache.storm.grouping.ShuffleGrouping;
 import org.apache.storm.kafka.BrokerHosts;
 import org.apache.storm.kafka.KafkaSpout;
 import org.apache.storm.kafka.SpoutConfig;
@@ -24,20 +25,29 @@ import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
 import org.apache.storm.tuple.Values;
 import org.apache.storm.utils.Utils;
+import java.io.InputStream;
+import java.io.IOException;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.Properties;
 
 public class TwitterTopology {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(TwitterTopology.class);
+  private static Properties prop;
 
   public static void main(String[] args) throws Exception {
+    prop = new Properties();
+    try (InputStream input = TwitterTopology.class.getClassLoader().getResourceAsStream("config.properties")) {
+    	prop.load(input);
+    } catch (IOException ex) {
+    	ex.printStackTrace();
+    }
+
     KafkaSpout kafkaQuerySpout = buildKafkaQuerySpout();
     KafkaSpout kafkaTwitterSpout = buildKafkaTwitterSpout();
-    FanBolt fanBolt1 = new FanBolt();
-    FanBolt fanBolt2 = new FanBolt();
-    FanBolt fanBolt3 = new FanBolt();
+    FanBolt fanBolt = new FanBolt();
     LuwakSearchBolt luwakSearchBolt1 = new LuwakSearchBolt();
     LuwakSearchBolt luwakSearchBolt2 = new LuwakSearchBolt();
     LuwakSearchBolt luwakSearchBolt3 = new LuwakSearchBolt();
@@ -48,13 +58,10 @@ public class TwitterTopology {
 
     builder.setSpout("kafka_query_spout", kafkaQuerySpout, 2);
     builder.setSpout("kafka_twitter_spout", kafkaTwitterSpout, 2);
-    //builder.setBolt("luwak_search", luwakSearchBolt, 8).allGrouping("kafka_query_spout").customGrouping("kafka_twitter_spout", new MultiGrouping());
-    builder.setBolt("fan1", fanBolt1, 1).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
-    builder.setBolt("fan2", fanBolt2, 1).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
-    builder.setBolt("fan3", fanBolt3, 1).shuffleGrouping("kafka_twitter_spout").allGrouping("kafka_query_spout");
-    builder.setBolt("luwak_search1", luwakSearchBolt1, 2).customGrouping("fan1", new MultiGrouping());
-    builder.setBolt("luwak_search2", luwakSearchBolt2, 2).customGrouping("fan2", new MultiGrouping());
-    builder.setBolt("luwak_search3", luwakSearchBolt3, 2).customGrouping("fan3", new MultiGrouping());
+    builder.setBolt("fan", fanBolt, 1).shuffleGrouping("kafka_twitter_spout").shuffleGrouping("kafka_query_spout");
+    builder.setBolt("luwak_search1", luwakSearchBolt1, 2).shuffleGrouping("fan", "query_stream").allGrouping("fan", "tweet_stream1");
+    builder.setBolt("luwak_search2", luwakSearchBolt2, 2).shuffleGrouping("fan", "query_stream").allGrouping("fan", "tweet_stream2");
+    builder.setBolt("luwak_search3", luwakSearchBolt3, 2).shuffleGrouping("fan", "query_stream").allGrouping("fan", "tweet_stream3");
     builder.setBolt("vader", vaderBolt, 6).shuffleGrouping("luwak_search1").shuffleGrouping("luwak_search2").shuffleGrouping("luwak_search3");
     builder.setBolt("redis_client", redisClientBolt, 3).fieldsGrouping("vader", new Fields("queryId"));
 
@@ -74,7 +81,7 @@ public class TwitterTopology {
   }
 
   private static KafkaSpout buildKafkaQuerySpout() {
-    String zkHostPort = "localhost:2181";   // a zookeeper node
+    String zkHostPort = prop.getProperty("kafka_host") + ":" + prop.getProperty("kafka_port");   // a zookeeper node
     String topic = "query-topic";             // kafka topic
 
     String zkSpoutId = UUID.randomUUID().toString();
@@ -89,7 +96,7 @@ public class TwitterTopology {
   }
 
   private static KafkaSpout buildKafkaTwitterSpout() {
-    String zkHostPort = "localhost:2181";   // a zookeeper node
+    String zkHostPort = prop.getProperty("kafka_host") + ":" + prop.getProperty("kafka_port");   // a zookeeper node
     String topic = "twitter-topic";             // kafka topic
 
     String zkSpoutId = UUID.randomUUID().toString();
