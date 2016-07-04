@@ -31,7 +31,7 @@ import java.util.Properties;
 
 public class TwitterTopology {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TwitterTopology.class);
+    private static final Logger logger = LoggerFactory.getLogger(TwitterTopology.class);
     private static Properties prop;
 
     public static void main(String[] args) throws Exception {

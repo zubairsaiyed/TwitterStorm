@@ -1,6 +1,6 @@
-# twitter-storm
+# tweet-storm
 
-twitter-storm is a sub-module of the [TwtrTrkr project](https://github.com/zubairsaiyed/TwtrTrkr). It is a Storm topology designed to overcome the single node limitation of Lucene Luwak. The Storm topology effectively distributes the core abstraction of Luwak, the inverted query index, across multiple nodes using Storm's shuffle stream grouping. Incoming tweets are then broadcast across all the partitions of the inverted query index to ensure no matches are missed.
+tweet-storm is a sub-module of the [TwtrTrkr project](https://github.com/zubairsaiyed/TwtrTrkr). It is a Storm topology primarily designed to overcome the single node memory limitation of Lucene Luwak. The topology effectively distributes the core abstraction of Luwak, the inverted query index, across multiple nodes using Storm's shuffle stream grouping. Incoming tweets are then broadcast across all the partitions of the inverted query index to ensure no matches are missed.
 
 The tweets corresponding to active system queries are then further processed by the NLTK VADER python library by leveraging Storm's multilang support. Tweet sentiment values are then grouped by query so an aggregate value can be determined.
 

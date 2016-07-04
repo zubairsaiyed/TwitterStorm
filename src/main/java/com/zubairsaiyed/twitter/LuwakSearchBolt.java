@@ -28,7 +28,7 @@ import org.apache.storm.tuple.Values;
 
 public class LuwakSearchBolt extends BaseRichBolt {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(LuwakSearchBolt.class);
+    private static final Logger logger = LoggerFactory.getLogger(LuwakSearchBolt.class);
     private OutputCollector collector;
     private Monitor monitor;
 

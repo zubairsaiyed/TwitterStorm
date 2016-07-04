@@ -25,7 +25,7 @@ import org.apache.storm.tuple.Values;
 public class RedisClientBolt extends BaseRichBolt {
 
     private final int ROLLING_COUNT = 5;
-    private static final Logger LOGGER = LoggerFactory.getLogger(RedisClientBolt.class);
+    private static final Logger logger = LoggerFactory.getLogger(RedisClientBolt.class);
     private OutputCollector collector;
     private static JedisPool pool;
     private HashMap<String, Double> averages;
