@@ -8,16 +8,26 @@ Finally the aggregates values are published to the Redis PubSub framework and pi
 
 ## Requirements :
 
-* Apache Kafka 1.0.1
-* Apache Zookeeper ( required for Kafka)
-* Apache Storm
-* NLTK Vader
+* Apache Kafka v0.8.1.1
+* Apache Zookeeper
+* Apache Storm v1.0.1
+* NLTK VADER
 * Jedis (Redis Java client)
 * Apache Maven
-* Oracle JDK 1.7 (64 bit )
+* Oracle JDK 1.7 (64 bit)
 
-# Design
+## Design
 
 The storm topology necessary to shuffle user queries and broadcast tweets before generating aggregate sentiment is as follows.
 
 ![Storm topology](https://github.com/zubairsaiyed/TwtrTrkr/blob/master/images/topology.png)
+
+## Running
+
+tweet-storm must first be configured with Apache Kafka server details and Redis connection details via a configuration file at `resources\config.properties`.
+
+The storm project can then be built using the `mvn assembly:assembly` command. Finally the jar can be loaded into Storm as follows:
+
+```
+storm jar target/TwitterStorm-1.0-SNAPSHOT-jar-with-dependencies.jar com.zubairsaiyed.twitter.TwitterTopology tweet-storm-topology remote
+```
